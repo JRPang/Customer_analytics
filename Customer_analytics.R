@@ -13,7 +13,7 @@ rm(list=ls(all=TRUE))  # Clear environment
 
 #add and load packages at once
 packages_used <- c("xlsx","plyr","tidyverse","tidyr","data.table","Hmisc","cluster",
-                   "ggplot2", "reshape", "reshape2", "ggpubr","arules","arulesViz")
+                   "ggplot2", "reshape", "reshape2", "ggpubr","arules","arulesViz","NMF")
 lapply(packages_used, library, character.only = TRUE)
 
 setwd("C:/Users/Jia Rong/Desktop/Project/Customer_analytics/")
@@ -42,8 +42,10 @@ offers <- join(offers, offer_stats, by="Offer", type = "inner")
 product <- offers %>% 
               group_by(Varietal, Origin) %>% 
               mutate(total.subscription = sum(number.subscription)) %>%
-              arrange(desc(total.subscription)) %>%
-              select(Varietal, Origin, total.subscription)
+              ungroup() %>%
+              dplyr::select(Varietal, Origin, total.subscription) %>%
+              arrange(desc(total.subscription))
+              
 
 product <- unique(product) %>% arrange(Varietal, desc(total.subscription), Origin)
 product$varietal.code <- row.names(product)
@@ -52,7 +54,7 @@ ordered_name <- product %>%
                   group_by(Varietal) %>% 
                   summarise(total = sum(total.subscription)) %>% 
                   arrange(desc(total)) %>% 
-                  select(Varietal)
+                  dplyr::select(Varietal)
 product$Varietal <- factor(product$Varietal, levels = ordered_name$Varietal)
 
 ggplot(data = product, aes(x = Varietal, color = Origin, fill = Origin)) +
@@ -84,9 +86,9 @@ ggscatter(offers, x = "number.subscription", y = "Discount",
 offers <- join(offers, product, by=c("Varietal","Origin"), type = "inner")
 
 transaction <- join(transaction, offers, by=c("Offer"), type = "inner") %>%
-                  select(name, Offer, varietal.code)
+                  dplyr::select(name, Offer, varietal.code)
 product_buyers <- transaction %>% 
-                    select(name, varietal.code) %>% unique() %>%
+                    dplyr::select(name, varietal.code) %>% unique() %>%
                     group_by(name) %>% 
                     mutate(order = row_number())
 product_buyers_list <- dcast(product_buyers, formula = name~order, value.var = c("varietal.code"))
@@ -112,7 +114,7 @@ rm(transaction_list, product_buyers)
 cols_basket <- paste0("product.", c(1:max_product))
 
 
-basket_set <- product_buyers_list %>% select(cols_basket)
+basket_set <- product_buyers_list %>% dplyr::select(cols_basket)
 basket_set[] <- lapply(basket_set, factor)
 write.table(basket_set, file="market_basket.csv", col.names=FALSE, row.names = FALSE, 
             quote = FALSE, sep = ",", na = "") 
@@ -144,19 +146,112 @@ plot(rules.sorted, method="paracoord", control=list(reorder=TRUE))
 
 # Data manipulation
 transaction$value <- 1
-transaction_data <- as.data.table(cast(transaction, name~Offer, fun.aggregate = sum)[,2:33]) 
+#transaction_data <- as.data.table(cast(transaction, name~Offer, fun.aggregate = sum)[,2:33]) 
+transaction_data <- as.data.frame(cast(transaction, name~Offer, fun.aggregate = sum)[,2:33]) 
 rownames(transaction_data) <- cast(transaction, name~Offer, sum)[,1]
-transaction_data[] <- lapply(transaction_data, factor)
 colnames(transaction_data) <- c(paste0("offer.", c(1:nrow(offers))))
+
+rows <- apply(transaction_data,1,sum)
+table(rows)
+cols <- apply(transaction_data,2,sum)
+cols
+
+table(unlist(transaction_data))
+sparsity <- sum(unlist(transaction_data) == 0)/ (nrow(transaction_data) * ncol(transaction_data))
+
+# Non-negative matrix factorization
+set.seed(1234)
+nmf_method <- "lee"
+cluster_set <- c(2:5)
+n_initial <- 25
+sil_values <- data.frame(cluster.number = cluster_set, 
+                         silhouette.consensus = rep(NA, length(cluster_set)),
+                         silhouette.coef = rep(NA, length(cluster_set)),
+                         silhouette.basis = rep(NA, length(cluster_set)),
+                         residuals = rep(NA, length(cluster_set)))
+
+for(i in cluster_set){
+  model_search <- nmf(transaction_data, i, nmf_method, nrun = n_initial)
+  metrics <- summary(model_search)
+  sil_values[i-1, "silhouette.consensus"] <- as.vector(metrics["silhouette.consensus"])
+  sil_values[i-1, "silhouette.coef"] <- as.vector(metrics["silhouette.coef"])
+  sil_values[i-1, "silhouette.basis"] <- as.vector(metrics["silhouette.basis"])
+  sil_values[i-1, "residuals"] <- as.vector(metrics["residuals"])
+}
+
+sil_values <- sil_values %>% 
+                  arrange(desc(silhouette.consensus), residuals) %>% 
+                  mutate(rank = row_number())
+
+# Build NMF model with optimal cluster number determined by comparing the silhouette distance and residuals
+optimal_cluster <- sil_values[sil_values["rank"] ==1, "cluster.number"]
+fit <- nmf(transaction_data, optimal_cluster, nmf_method, nrun = n_initial)
+summary(fit)
+
+# customer segmentation by purchasing behaviour on promotion marketing campaigns
+weight <- basis(fit)
+wp <- weight / apply(weight,1,sum)
+
+# Hard clustering 
+cluster_assigned <- max.col(weight)
+table(cluster_assigned)
+t(aggregate(transaction_data, by=list(cluster_assigned), FUN=mean))
+
+transaction_data <- cbind.data.frame(wp, cluster_assigned, transaction_data)
+
+# customer profiling according to segmentation
+coef <- as.data.frame(coef(fit)) %>% dplyr:: select(starts_with("offer"))
+profile_coef <- round(t(coef), 2)
+profile_group <- max.col(profile_coef)
+offers <- cbind.data.frame(offers, profile_group, profile_coef)
+
+# offers[order(offers$"1",decreasing = TRUE),1:10][1:10,]
+# offers[order(offers$"2",decreasing = TRUE),1:10][1:10,]
+# offers[order(offers$"3",decreasing = TRUE),1:10][1:10,]
+
+# transaction_data[transaction_data$cluster_assigned == "1", c(5:ncol(transaction_data))]
+# transaction_data[transaction_data$cluster_assigned == "2", c(5:ncol(transaction_data))]
+# transaction_data[transaction_data$cluster_assigned == "3", c(5:ncol(transaction_data))]
+
+by(transaction_data[,c(5:ncol(transaction_data))], transaction_data$cluster_assigned, FUN=colSums)
+
+basismap(fit)
+#plot.new()
+frame()
+coefmap(fit)
+
+# from consensus
+plot(silhouette(fit, what = 'consensus'))
+# feature clustering(row)
+plot(silhouette(fit, what = 'features'))
+# samples clustering(column)
+plot(silhouette(fit, what = 'samples'))
+
+
+
+
+# PCA, SVD
+
+
+
+
+
 
 
 # K-modes clustering 
-install.packages("klaR")
+#install.packages("klaR")
 library(klaR)
 
-cluster.results <-kmodes(transaction_data, modes = 4, iter.max = 10, weighted = FALSE )
+cluster.results <- kmodes(transaction_data, modes = 3, iter.max = 10, weighted = FALSE )
 cluster.results$cluster
 cluster.results
+rm(cluster.results)
+
+
+#transaction_data <- as.data.frame(prop.table(as.matrix(transaction_data), margin = 1))
+#rownames(transaction_data) <- cast(transaction, name~Offer, sum)[,1]
+
+
 
 
 
@@ -199,7 +294,7 @@ silhouette.rk <- function(cluster,dist.euclidean){
 set.seed(1)
 dist.euclidean <- dist(transaction_data)
 n <- attr(dist.euclidean, "Size")
-no_cluster <- 5
+no_cluster <- 4
 
 #For K = 4 clusters, one can calculate silhouette as follows:
 km_model <- kmeans(transaction_data, centers =  no_cluster, nstart = 25)
@@ -272,9 +367,10 @@ print((summary(silhouette(km_model$cluster,dist.euclidean)))$avg.width)
 library(skmeans)
 set.seed(1)
 sk.out <- skmeans(as.matrix(transaction_data),5,method="genetic")
-cluster <- data.frame(name=(rownames(transaction_data)),cluster=sk.out$cluster,id=1:nrow(cluster))
+cluster <- data.frame(name=(rownames(transaction_data)),cluster=sk.out$cluster)
+cluster$id <- 1:nrow(cluster)
 offers_by_cluster <- merge(transaction,cluster,all.x=T)
-temp <- cast(offers_by_cluster,offers~cluster,sum)
+temp <- cast(offers_by_cluster,Offer~cluster,sum)
 temp <- cbind(offers,temp)
 
 temp[order(temp$"1",decreasing = TRUE),1:6][1:10,]
