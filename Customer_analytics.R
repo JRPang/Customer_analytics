@@ -16,7 +16,6 @@ packages_used <- c("xlsx","plyr","tidyverse","tidyr","data.table","Hmisc","clust
                    "ggplot2", "reshape", "reshape2", "ggpubr","arules","arulesViz","NMF")
 lapply(packages_used, library, character.only = TRUE)
 
-setwd("C:/Users/Jia Rong/Desktop/Project/Customer_analytics/")
 data_file <- "clustering-vanilla.xlsx"
 
 #------------------------- File Processing -------------------------
