@@ -1,4 +1,4 @@
-# Customer_analytics
+# Customer Analytics
 
 *Market basket analysis and clustering on customer purchasing data*
 
@@ -63,9 +63,9 @@ From the purchasing records, customer Gracia bought Italian Cabernet Sauvignon i
 
 Due to high sparsity of the data, we perform the customer segmentation using matrix factorization. Non-negative matrix factorization(NMF) will be used to segment customers based on their buying preferences. Non-negative matrix factorization is a group of algorithms in multivariate analysis and linear algebra where the matrix is factorized into two simpler matrix, which are coefficient matrix and basis matrix. The coefficient matrix and basis matrix are combined to yield approximations of the observed data. 
 
-NMF simplify the original (customers in row, offers in columns, 1 means that the customer took respective offers) matrix by reducing the number of columns from the 32 promotional campaigns to some smaller number of latent or hidden components. The coefficient matrix show us the relationship of latent components and the features in columns. The basis matrix is used to inspect the the relationship of latent components and customers, which provides us the customer segments we need.
+NMF simplify the original matrix(customers in row, offers in columns, 1 means that the customer took respective offers) by reducing the number of columns from the 32 promotional campaigns to some smaller number of latent or hidden components. The coefficient matrix show us the relationship of latent components and the features in columns. The basis matrix is used to inspect the the relationship of latent components and customers, which provides us the customer segments we need.
 
-#### Coefficient matrix
+### Coefficient matrix
 ![alt text3](result_screenshots/mixture_coef.jpeg)
 
 As shown in the coefficient heatmap above, the offerings are assigned into 3 segments(groups/ clusters). Three segments are accounted for 12.5%, 18.75% and 68.75% respectively.
@@ -81,19 +81,27 @@ Segment 3: Offers 1, 3, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 19, 20, 21, 22, 2
 | No. of Origin | 4 | 5 | 9 |
 | Types of Varietal | 1 | 5 | 7 |
 | Mean of Minimum Quantity(kg) | 58.5 | 6 | 80.1 |
-| Mean of discount rate(%) | 45.25(28) | 53.17(17.31) | 60.48(20.13) |
+| Mean and standard deviation of discount rate(%) | 45.25(28) | 53.17(17.31) | 60.48(20.13) |
 | Past Peak(%) | 0 | 17 | 30 |
+> Table 2. Customer profiling based on the segmentation
 
 From the findings above, all offerings of Pinot Noir are grouped into segment one, and only one type of varietal consisted in this segment. We can described second segment as small timers because the minimum purchasing quantity of this segment is only 6kg, much smaller than other two segments. Almost all types of the varietals from different origins included in the third segment and they have highest mean of minimum purchasing quantity. 68.75% of offerings are grouped into third segment, they can be concluded as variety and heavy drinkers.    
 
-Past.Peak 100% FALSE
-
-#### Basis matrix
+### Basis matrix
 ![alt text4](result_screenshots/basis_components.jpeg)
-We end with the heatmap for the 100 customers. NMF yields what some consider to be a soft clustering with each respondent assigned a number that behaves like a probability (i.e., ranges from 0 to 1 and sums to 1).  Each customer can be described as a profile of basis component scores. The underlying heterogeneity is revealed by this heatmap.
 
+We end with the heatmap for the 100 customers. NMF yields what some consider to be a soft clustering with each respondent assigned a number that behaves like a probability (i.e., ranges from 0 to 1 and sums to 1). Each customer can be described as a profile of basis component scores. The underlying heterogeneity is revealed by this heatmap.
+
+NMF decomposes the sparse bianry purchase data into 3 basis components, which are Pinot Noir lovers, small timers and variety and heavy drinkers. 19% of the customers clustered into segment 1(Basis #1 in the basis components heatmap), the customers in this segment are Pinot Noir lovers and they are single Pinot Noir drinkers. This can be seen by inspecting the bottom of the heatmap, those rows(customers) have only one column of dark red and yellow everywhere else.
+
+They are followed by 37% small timers in the second component, most of them only get the offer with small quantity. The remaining rows of the heatmap show considerably more overlap because these customers' purchase profile cannot be reproduced using only one basis component. The customers in third segment are considered as variety and heavy drinkers, as they bought various type of varietal originated from origins and they usually buy in large quantity.
+
+### Evaluation of NMF clustering
+By definition from [wikipedia](https://en.wikipedia.org/wiki/Silhouette_(clustering)), silhouette refers to a method of interpretation and validation of consistency within clusters of data. The technique provides a succinct graphical representation of how well each object lies within its cluster. The silhouette value is a measure of how similar an object is to its own cluster (cohesion) compared to other clusters (separation). The silhouette ranges from −1 to +1, where a high value indicates that the object is well matched to its own cluster and poorly matched to neighboring clusters. The silhouette can be calculated with any distance metric, such as the Euclidean distance or the Manhattan distance. 
+
+Euclidean distance is used in the evaluation of NMF clustering(customer segmentation).
 
 ![alt text5](result_screenshots/silhouette_consensus.jpeg)
 ![alt text6](result_screenshots/silhouette_features.jpeg)
 
-
+As shown in the silhouette plots above, the clustering of offers has an average silhouette value of 0.99 while clustering of 100 customers has an average silhouette value of 0.9. Both silhouette value are very close to 1, we can conclude that the NMF clustering of offers and customers are appropriate.
