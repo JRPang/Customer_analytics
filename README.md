@@ -2,7 +2,7 @@
 
 *Market basket analysis and clustering on customer purchasing data*
 
-Keywords: ***marketing target, customer segmentation, customer profiling, clustering, market basket analysis, apriori, nonnegative matrix factorization***
+Keywords: ***marketing target, customer segmentation, customer profiling, clustering, market basket analysis, apriori, nonnegative matrix factorization, recommender system, latent factor model***
 
 The dataset is from [Data Smart Chapter 2](https://www.wiley.com/en-us/Data+Smart%3A+Using+Data+Science+to+Transform+Information+into+Insight-p-9781118661468). Chapter 2 focuses on the New Jersey company Joey Bag O’ Donuts Wholesale Wine Emporium. The owner, Joey, travels the globe to find deals on wine and ships them back to Jersey where it is our job to sell it for a profit to retailers. Our main tool is the ever successful e-mail newsletter. Each month there is a new e-mail offering two or three deals. 
 
